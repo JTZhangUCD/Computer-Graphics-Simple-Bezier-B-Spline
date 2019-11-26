@@ -28,37 +28,37 @@ using namespace std;
 int grid_width;
 int grid_height;
 
-float pixel_size;
+double pixel_size;
 
 int win_height;
 int win_width;
 
 /*---------------------------- Data Structure Def ----------------------------*/
 struct Vertex {                                                                 // Vertex
-    float x,y,z;
+    double x,y;
     
-    Vertex(float x1, float y1, float z1) {
-        x = x1; y = y1; z = z1;
+    Vertex(double x1, double y1) {
+        x = x1; y = y1;
     }
     Vertex(void) {
-        x = 0; y = 0; z = 0;
+        x = 0; y = 0;
     }
     
     inline Vertex operator = (const Vertex v1) {
-        x = v1.x; y = v1.y; z = v1.z;
+        x = v1.x; y = v1.y;
         return *this;
     }
     inline Vertex operator + (const Vertex v1) const {
-        return Vertex(x+v1.x, y+v1.y, z+v1.z);
+        return Vertex(x+v1.x, y+v1.y);
     }
     inline Vertex operator - (const Vertex v1) const {
-        return Vertex(x-v1.x, y-v1.y, z-v1.z);
+        return Vertex(x-v1.x, y-v1.y);
     }
-    inline Vertex operator * (float m) const {
-        return Vertex(x*m, y*m, z*m);
+    inline Vertex operator * (double m) const {
+        return Vertex(x*m, y*m);
     }
-    inline Vertex operator / (float m) const {
-        return Vertex(x+m, y+m, z+m);
+    inline Vertex operator / (double m) const {
+        return Vertex(x+m, y+m);
     }
 };
 
@@ -73,9 +73,9 @@ struct Polygon {                                                                
     
     /* B-spline */
     bool k;
-    vector<float> knots;
+    vector<double> knots;
     vector<Vertex> splPoints;
-    vector<float> knotVector;
+    vector<double> knotVector;
     
     vector<int> temp;
     
@@ -110,10 +110,10 @@ struct Polygon {                                                                
              }
         }
     }
-    void computeBezPt(GLfloat u, Vertex *bezPt, GLint *C, int size) {
+    void computeBezPt(GLdouble u, Vertex *bezPt, GLint *C, int size) {
         int nCtrlPts = size;
         GLint k, n = nCtrlPts - 1;
-        GLfloat bezBlendFcn;
+        GLdouble bezBlendFcn;
         bezPt->x = 0.0;
         bezPt->y = 0.0;
 
@@ -126,7 +126,7 @@ struct Polygon {                                                                
     void bezier() {
         temp.clear();
         Vertex bezCurvePt;
-        GLfloat u;
+        GLdouble u;
         GLint *C, k;
         
         int nCtrlPts = (int)(vertices.size());
@@ -137,7 +137,7 @@ struct Polygon {                                                                
         binomialCoeffs(nCtrlPts - 1, C);
 
         for (k = 0; k <= nBezCurvePts; k++) {
-            u = GLfloat (k) / GLfloat (nBezCurvePts);
+            u = GLdouble (k) / GLdouble (nBezCurvePts);
             computeBezPt (u, &bezCurvePt, C, nCtrlPts);
             // plotPoint (bezCurvePt);
             bezPoints.push_back(bezCurvePt);
@@ -156,7 +156,7 @@ struct Polygon {                                                                
             knots.push_back(0);
         } else {
             for(int i=0; i <= nSegment; i++)
-                knots.push_back(((float) i)/nSegment);
+                knots.push_back(((double) i)/nSegment);
         }
 
         for(int i=0; i < degree; i++)
@@ -177,21 +177,20 @@ struct Polygon {                                                                
                 // k-1 = subCurveOrder-1
                 // n+1 = always the number of total control points
 
-                float t = ( steps / 1000.0f ) * ( vertices.size() - (subCurveOrder-1) ) + subCurveOrder-1;
+                double t = ( steps / 1000.0f ) * ( vertices.size() - (subCurveOrder-1) ) + subCurveOrder-1;
 
                 Vertex temp;
-                temp.x = temp.y = temp.z = 0;
+                temp.x = temp.y = 0;
                 for(int i=1; i <= vertices.size(); i++) {
-                    float weightForControl = calculateWeightForPointI(i, subCurveOrder, (int)vertices.size(), t);
+                    double weightForControl = calculateWeightForPointI(i, subCurveOrder, (int)vertices.size(), t);
                     temp.x += weightForControl * vertices[i-1].x;
                     temp.y += weightForControl * vertices[i-1].y;
-                    temp.z += weightForControl * vertices[i-1].z;
                 }
                 splPoints.push_back(temp);
             }
         }
     }
-    float calculateWeightForPointI(int i, int k, int cps, float t) {
+    double calculateWeightForPointI(int i, int k, int cps, double t) {
         if(k == 1) {
             if(t >= knot(i) && t < knot(i+1))
                 return 1;
@@ -199,13 +198,13 @@ struct Polygon {                                                                
                 return 0;
         }
 
-        float numeratorA = ( t - knot(i) );
-        float denominatorA = ( knot(i + k-1) - knot(i) );
-        float numeratorB = ( knot(i + k) - t );
-        float denominatorB = ( knot(i + k) - knot(i + 1) );
+        double numeratorA = ( t - knot(i) );
+        double denominatorA = ( knot(i + k-1) - knot(i) );
+        double numeratorB = ( knot(i + k) - t );
+        double denominatorB = ( knot(i + k) - knot(i + 1) );
 
-        float subweightA = 0;
-        float subweightB = 0;
+        double subweightA = 0;
+        double subweightB = 0;
 
         if( denominatorA != 0 )
             subweightA = numeratorA / denominatorA * calculateWeightForPointI(i, k-1, cps, t);
@@ -214,7 +213,7 @@ struct Polygon {                                                                
 
         return subweightA + subweightB;
     }
-    float knot(int indexForKnot) {
+    double knot(int indexForKnot) {
         return knotVector.at(indexForKnot-1);
     }
     void createKnotVector(int curveOrderK, int numControlPoints) {
@@ -242,7 +241,7 @@ struct Graph {                                                                  
     void printInfo(int i) {
         i--;
         for (int j = 0; j < polys[i].vertices.size(); j++) {
-            cout << polys[i].vertices[j].x << ' ' << polys[i].vertices[j].y << ' ' << polys[i].vertices[j].z << endl;
+            cout << polys[i].vertices[j].x << ' ' << polys[i].vertices[j].y << endl;
         }
         cout << xMin << ' ' << xMax << ' ' << yMin <<  ' ' << yMax << endl;
     }
@@ -289,8 +288,8 @@ int pindex = -1;
 int id = -1;
 int aid = -1;
 int pid = -1;
-float kid = -1;
-float kindex = -1;
+double kid = -1;
+double kindex = -1;
 
 /*--------------------------- my Helper Functions ----------------------------*/
 void draw_lines(Graph frame, bool isline){
@@ -344,7 +343,6 @@ void init();
 void idle();
 void display();
 void draw_pix(int x, int y);
-void reshape(int width, int height);
 void key(unsigned char ch, int x, int y);
 void mouse(int button, int state, int x, int y);
 void motion(int x, int y);
@@ -377,7 +375,6 @@ int main(int argc, char **argv)
     
     /*defined glut callback functions*/
     glutDisplayFunc(display); //rendering calls here
-    glutReshapeFunc(reshape); //update GL on window size change
     glutMouseFunc(mouse);     //mouse button events
     glutMotionFunc(motion);   //mouse movement events
     glutKeyboardFunc(key);    //Keyboard events
@@ -451,34 +448,14 @@ void display()
 //Draws a single "pixel" given the current grid size
 //don't change anything in this for project 1
 void draw_pix(int x, int y){
-//    glBegin(GL_POINTS);
-//    glColor3f(.2,.2,1.0);
-//    glVertex3f(x+.5,y+.5,0);
-//    glEnd();
     glBegin(GL_POINTS);
-    glColor3f(1.0,0,0);
-    glVertex3f(x,y,0);
+    glColor3f(.2,.2,1.0);
+    glVertex3f(x+.5,y+.5,0);
     glEnd();
-}
-
-void reshape(int width, int height)
-{
-    win_width = width;
-    win_height = height;
-
-    glViewport(0,0,width,height);
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0,grid_width,0,grid_height,-10,10);
-    
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    
-    pixel_size = width/(float)grid_width;
-    
-    glPointSize(pixel_size);
-    check();
+//    glBegin(GL_POINTS);
+//    glColor3f(1.0,0,0);
+//    glVertex3f(x,y,0);
+//    glEnd();
 }
 
 void key(unsigned char ch, int x, int y)
