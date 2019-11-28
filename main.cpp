@@ -70,7 +70,7 @@ struct Curve {                                                                //
     int totalBezierVertices;
     vector<Vertex> bezierVertices;
 
-    /* B-spline */
+    /* b-spline */
     int degree;
     bool k;
     vector<Vertex> bSplineVertices;
@@ -78,28 +78,30 @@ struct Curve {                                                                //
     Curve(void) {
         curveID = 3; degree = 3; totalBezierVertices = 100; k = false;
     }
-    void binomialCoeffs(GLint n, GLint * C) {
+    
+    //0->n
+    void binomialCoeffs(GLint n, GLint *nCrList) {
         bool equal = false;
         bool jequal = false;
-        GLint k, j;
-        for (k = 0; k <= n; k++) {
+        GLint i, j;
+        for (i = 0; i <= n; i++) {
             // Compute n!/(k!(n - k)!)
-            C [k] = 1;
-            for (j = n; j >= k + 1; j--) {
-                if (j >= 2 && j <= n-k) {
+            nCrList[i] = 1;
+            for (j = n; j >= i + 1; j--) {
+                if (j >= 2 && j <= n-i) {
                     equal = true;
                 }
                 if (equal == false) {
-                    C[k] *= j;
+                    nCrList[i] *= j;
                 }
                 else {equal = false;}
             }
-            for (j = n - k; j >= 2; j--) {
-                if (j >= k+1 && j <= n) {
+            for (j = n - i; j >= 2; j--) {
+                if (j >= i+1 && j <= n) {
                     jequal = true;
                 }
                 if (jequal == false) {
-                    C [k] /= j;
+                    nCrList[i] /= j;
                 } else {
                     jequal = false;
                 }
@@ -117,14 +119,13 @@ struct Curve {                                                                //
     }
     void bezier() {
         Vertex bezierVertex;
-        GLfloat t;
     
         int totalVertices = (int)(vertices.size());
-        GLint *nCrList = new GLint [totalVertices+1];
+        GLint *nCrList = new GLint[totalVertices+1];
         binomialCoeffs(totalVertices - 1, nCrList);
 
         for (int i = 0; i <= totalBezierVertices; i++) {
-            t = GLfloat(i) / GLfloat(totalBezierVertices);
+            GLfloat t = GLfloat(i) / GLfloat(totalBezierVertices);
             getBezierVertex(t, &bezierVertex, nCrList, totalVertices);
             bezierVertices.push_back(bezierVertex);
         }
@@ -144,7 +145,7 @@ struct Curve {                                                                //
                 // k-1 = subCurveOrder-1
                 // n+1 = always the number of total control points
 
-                float t = (steps / 1000.0f) * ( vertices.size() - (subCurveOrder-1) ) + subCurveOrder-1;
+                float t = (steps / 1000.0f) * (vertices.size() - (subCurveOrder-1)) + subCurveOrder-1;
 
                 Vertex temp;
                 temp.x = temp.y = 0;
@@ -165,17 +166,17 @@ struct Curve {                                                                //
                 return 0;
         }
 
-        float numeratorA = ( t - knot(i) );
-        float denominatorA = ( knot(i + k-1) - knot(i) );
-        float numeratorB = ( knot(i + k) - t );
-        float denominatorB = ( knot(i + k) - knot(i + 1) );
+        float numeratorA = (t - knot(i));
+        float denominatorA = (knot(i + k-1) - knot(i));
+        float numeratorB = (knot(i + k) - t);
+        float denominatorB = (knot(i + k) - knot(i + 1));
 
         float subweightA = 0;
         float subweightB = 0;
 
-        if( denominatorA != 0 )
+        if (denominatorA != 0)
             subweightA = numeratorA / denominatorA * calculateWeightForPointI(i, k-1, cps, t);
-        if( denominatorB != 0 )
+        if (denominatorB != 0)
             subweightB = numeratorB / denominatorB * calculateWeightForPointI(i+1, k-1, cps, t);
 
         return subweightA + subweightB;
@@ -186,7 +187,7 @@ struct Curve {                                                                //
     void createKnotVector(int curveOrderK, int numControlPoints) {
         int knotSize = curveOrderK + numControlPoints;
         for(int count = 0; count <= knotSize; count++) {
-                knotVector.push_back( count );
+                knotVector.push_back(count);
         }
     }
 };
@@ -220,44 +221,56 @@ float kid = -1;
 float kindex = -1;
 
 /*--------------------------- my Helper Functions ----------------------------*/
-void draw_lines(Graph frame, bool isline){
-    glLineWidth(2.0); //sets the "width" of each line we are rendering
-    //tells opengl to interperate every two calls to glVertex as a line
+int get_fact(int n) {
+    int result = 1;
+    for (int i = 2; i <= n; i++) {
+        result = result * i;
+    }
+    return result;
+}
+int get_nCr(int n, int r) {
+    return get_fact(n) / (get_fact(r) * get_fact(n - r));
+}
+
+void draw_input_line (Graph frame) {
+    glLineWidth(2.0);
     glBegin(GL_LINES);
-    //first line will be blue
-    if (!isline) {
-        for (int i = 0; i < frame.curves.size(); i++) {
-            if (frame.curves[i].vertices.size() > 1) {
-                for (int j = 0; j < frame.curves[i].vertices.size() - 1; j++) {
+    for (int i = 0; i < frame.curves.size(); i++) {
+        if (frame.curves[i].vertices.size() >= 2) {
+            for (int j = 1; j < frame.curves[i].vertices.size(); j++) {
                 glColor3f(0, 0, 1);
+                glVertex2f(frame.curves[i].vertices[j-1].x, frame.curves[i].vertices[j-1].y);
                 glVertex2f(frame.curves[i].vertices[j].x, frame.curves[i].vertices[j].y);
-                glVertex2f(frame.curves[i].vertices[j+1].x, frame.curves[i].vertices[j+1].y);
-                }
             }
         }
     }
-    else {
-        for (int i = 0; i < frame.curves.size(); i++) {
-            if (!isBezier && frame.curves[i].bSplineVertices.size() != 0) {
-                if (frame.curves[i].vertices.size() > 2) {
-                    for (int j = 0; j < frame.curves[i].bSplineVertices.size() - 1; j++) {
-                        glColor3f(1, 0, 0);
-                        glVertex2f(frame.curves[i].bSplineVertices[j].x, frame.curves[i].bSplineVertices[j].y);
-                        glVertex2f(frame.curves[i].bSplineVertices[j+1].x, frame.curves[i].bSplineVertices[j+1].y);
-                    }
-                }
+    glEnd();
+}
+        
+void draw_bezier (Graph frame) {
+    glLineWidth(2.0);
+    glBegin(GL_LINES);
+    for (int i = 0; i < frame.curves.size(); i++) {
+        if (frame.curves[i].vertices.size() >= 3) {
+            for (int j = 1; j < frame.curves[i].bezierVertices.size(); j++) {
+                glColor3f(1, 0, 0);
+                glVertex2f(frame.curves[i].bezierVertices[j-1].x, frame.curves[i].bezierVertices[j-1].y);
+                glVertex2f(frame.curves[i].bezierVertices[j].x, frame.curves[i].bezierVertices[j].y);
             }
         }
-
-        for (int i = 0; i < frame.curves.size(); i++) {
-            if (isBezier && frame.curves[i].bezierVertices.size() != 0) {
-                if (frame.curves[i].vertices.size() > 2) {
-                    for (int j = 0; j < frame.curves[i].bezierVertices.size() - 1; j++) {
-                        glColor3f(1, 0, 0);
-                        glVertex2f(frame.curves[i].bezierVertices[j].x, frame.curves[i].bezierVertices[j].y);
-                        glVertex2f(frame.curves[i].bezierVertices[j+1].x, frame.curves[i].bezierVertices[j+1].y);
-                    }
-                }
+    }
+    glEnd();
+}
+    
+void draw_bspline (Graph frame) {
+    glLineWidth(2.0);
+    glBegin(GL_LINES);
+    for (int i = 0; i < frame.curves.size(); i++) {
+        if (frame.curves[i].vertices.size() >= 3) {
+            for (int j = 1; j < frame.curves[i].bSplineVertices.size(); j++) {
+                glColor3f(1, 0, 0);
+                glVertex2f(frame.curves[i].bSplineVertices[j-1].x, frame.curves[i].bSplineVertices[j-1].y);
+                glVertex2f(frame.curves[i].bSplineVertices[j].x, frame.curves[i].bSplineVertices[j].y);
             }
         }
     }
@@ -280,11 +293,9 @@ int main(int argc, char **argv)
 {
     grid_width = 800;
     grid_height = 800;
-    
     pixel_size = 1;
-
-    win_height = grid_height*pixel_size;
-    win_width = grid_width*pixel_size;
+    win_height = grid_height * pixel_size;
+    win_width = grid_width * pixel_size;
 
     glutInit(&argc,argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
@@ -325,7 +336,7 @@ void display()
     glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
 
     if (origin.curves.size() != 0) {
-        draw_lines(origin, false);
+        draw_input_line(origin);
 
         for (int i = 0; i < origin.curves.size(); i++) {
             for (int j = 0; j < origin.curves[i].vertices.size(); j++) {
@@ -337,12 +348,14 @@ void display()
                     origin.curves[i].bezierVertices.clear();
                     origin.curves[i].bezier();
                 }
-                if (origin.curves[i].vertices.size() > 1)
-                     draw_lines(origin, true);
+                if (origin.curves[i].vertices.size() > 1) {
+                    draw_bezier(origin);
+                }
             } else {
                 origin.curves[i].updateCurve();
-                if (origin.curves[i].vertices.size() > 1)
-                    draw_lines(origin, true);
+                if (origin.curves[i].vertices.size() > 1) {
+                    draw_bspline(origin);
+                }
             }
         }
     }
@@ -387,63 +400,62 @@ void key(unsigned char ch, int x, int y)
     fout.open("output.txt");
     switch(ch)
     {
-       case 'u':
-         mouseinput = false;
-         mouseadd = false;
-         mousechange = false;
-         mousedelete = false;
-         cout << "please enter new sub curve number:" << endl;
-         cin >> cur;
-         if (cur > 1 && cur < 5) {
-             for (int i = 0; i < origin.curves.size(); i++) {
-                 origin.curves[i].curveID = cur;
-             }
-         }
-         else cout << "wrong curve number!!! :(" << endl;
-         break;
-        case 'b' :
+        case 'u':
+            mouseinput = false;
+            mouseadd = false;
+            mousechange = false;
+            mousedelete = false;
+            cout << "please enter new sub curve number:" << endl;
+            cin >> cur;
+            if (cur > 1 && cur < 5) {
+                for (int i = 0; i < origin.curves.size(); i++) {
+                    origin.curves[i].curveID = cur;
+                }
+            }
+            else cout << "wrong curve number!!! :(" << endl;
+            break;
+        case 'b':
              isBezier = !isBezier;
              break;
-        case 'i' :
-         mouseinput = !mouseinput;
-         mouseadd = false;
-         mousechange = false;
-         mousedelete = false;
-         if (mouseinput) {
-             cout << "please enter the new curve id" << endl;
-             cin >> id;
-         }
-         else id = -1;
-         break;
-         case 'd' :
+        case 'i':
+            mouseinput = !mouseinput;
+            mouseadd = false;
+            mousechange = false;
+            mousedelete = false;
+            if (mouseinput) {
+                cout << "please enter the new curve id" << endl;
+                cin >> id;
+            }
+            else id = -1;
+            break;
+         case 'd':
              mousedelete = !mousedelete;
              mouseadd = false;
              mousechange = false;
              mouseinput = false;
              break;
-         case 'a' :
-             mouseadd = !mouseadd;
-             mouseinput = false;
-             mousechange = false;
-             mousedelete = false;
-             if (mouseadd) {
-                 cout << "please enter the curve id that you wang to add points" << endl;
-                 cin >> aid;
-             }
-             else aid = -1;
-             if (aid > origin.curves.size())
-             {
-               cout << "curve id does not exist or add mode is turned off! :(" << endl;
-             }
-             break;
-         case 'p' :
+         case 'a':
+            mouseadd = !mouseadd;
+            mouseinput = false;
+            mousechange = false;
+            mousedelete = false;
+            if (mouseadd) {
+                cout << "please enter the curve id that you wang to add points" << endl;
+                cin >> aid;
+            }
+            else aid = -1;
+            if (aid > origin.curves.size()) {
+                cout << "curve id does not exist or add mode is turned off! :(" << endl;
+            }
+            break;
+         case 'p':
              mousechange = !mousechange;
              pindex = -1;
              mouseinput = false;
              mouseadd = false;
              mousedelete = false;
              break;
-         case 'c' :
+         case 'c':
              for (int i = 0; i < origin.curves.size(); i++) {
                  origin.curves[i].vertices.clear();
              }
@@ -457,24 +469,24 @@ void key(unsigned char ch, int x, int y)
              poly.vertices.push_back(temp);
              origin.curves.push_back(poly);
              break;
-          case 'q' :
-          cout << "Thanks for your using :)" <<  endl;
-          if (origin.curves.size() == 1 && origin.curves[0].vertices[0].x == -300) {
-           fout << "No curve in this graph" << endl;
-          }
-          else {
-            fout << "the number of the curve is: " << origin.curves.size() << endl << endl;
-            for (int i = 0; i < origin.curves.size(); i++) {
-             fout << "the id of the curve is: " << i+1 << endl << endl;
-             fout << "the vertex of the curve is: " << endl;
-             for (int j = 0; j < origin.curves[i].vertices.size(); j++) {
-               fout << "(" << origin.curves[i].vertices[j].x << "," << origin.curves[i].vertices[j].y << ")" << " --> ";
-             }
-             fout << "end" << endl << endl << endl;
+          case 'q':
+            cout << "Thanks for your using :)" <<  endl;
+            if (origin.curves.size() == 1 && origin.curves[0].vertices[0].x == -300) {
+                fout << "No curve in this graph" << endl;
             }
-          }
-          exit(0);
-          break;
+            else {
+                fout << "the number of the curve is: " << origin.curves.size() << endl << endl;
+                for (int i = 0; i < origin.curves.size(); i++) {
+                    fout << "the id of the curve is: " << i+1 << endl << endl;
+                    fout << "the vertex of the curve is: " << endl;
+                for (int j = 0; j < origin.curves[i].vertices.size(); j++) {
+                    fout << "(" << origin.curves[i].vertices[j].x << "," << origin.curves[i].vertices[j].y << ")" << " --> ";
+                }
+                    fout << "end" << endl << endl << endl;
+                }
+            }
+            exit(0);
+            break;
         default:
             //prints out which key the user hit
             printf("User hit the \"%c\" key\n",ch);
