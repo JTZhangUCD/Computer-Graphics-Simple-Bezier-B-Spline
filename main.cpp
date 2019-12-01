@@ -12,15 +12,16 @@
 #include <GL/glut.h>
 #endif
 
-//other includes
 #include <stdio.h>
 #include <stdlib.h>
-#include <list>
-#include <cmath>
-#include <string>
-#include <vector>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <cmath>
+#include <vector>
+#include <string>
+#include <cstring>
+#include <cmath>
+#include <list>
 
 using namespace std;
 
@@ -28,16 +29,29 @@ using namespace std;
 int grid_width;
 int grid_height;
 
-float pixel_size;
+double pixel_size;
 
 int win_height;
 int win_width;
 
+/*------------------- Helper Funct For Implementing Struct -------------------*/
+int get_fact(int n) {
+    int result = 1;
+    for (int i = 2; i <= n; i++) {
+        result = result * i;
+    }
+    return result;
+}
+
+int get_nCr(int n, int r) {
+    return get_fact(n) / (get_fact(r) * get_fact(n - r));
+}
+
 /*---------------------------- Data Structure Def ----------------------------*/
 struct Vertex {
-    float x,y;
+    double x,y;
 
-    Vertex(float x1, float y1) {
+    Vertex(double x1, double y1) {
         x = x1; y = y1;
     }
     Vertex(void) {
@@ -54,16 +68,15 @@ struct Vertex {
     inline Vertex operator - (const Vertex v1) const {
         return Vertex(x-v1.x, y-v1.y);
     }
-    inline Vertex operator * (float n) const {
+    inline Vertex operator * (double n) const {
         return Vertex(x*n, y*n);
     }
-    inline Vertex operator / (float n) const {
+    inline Vertex operator / (double n) const {
         return Vertex(x/n, y/n);
     }
 };
 
 struct Curve {                                                                // Curve
-    int curveID;
     vector<Vertex> vertices;
     
     /* bezier */
@@ -71,108 +84,78 @@ struct Curve {                                                                //
     vector<Vertex> bezierVertices;
 
     /* b-spline */
+    int order_k;
     int degree;
-    bool k;
+    vector<double> knots;
+    
+    int totalBsplineVertices;
     vector<Vertex> bSplineVertices;
-    vector<float> knotVector;
+    
     Curve(void) {
-        curveID = 3; degree = 3; totalBezierVertices = 100; k = false;
+        order_k = 3; degree = 3; totalBezierVertices = 100; totalBsplineVertices = 1000;
     }
     
     //0->n
-    void binomialCoeffs(GLint n, GLint *nCrList) {
-        bool equal = false;
-        bool jequal = false;
-        GLint i, j;
-        for (i = 0; i <= n; i++) {
-            // Compute n!/(k!(n - k)!)
-            nCrList[i] = 1;
-            for (j = n; j >= i + 1; j--) {
-                if (j >= 2 && j <= n-i) {
-                    equal = true;
-                }
-                if (equal == false) {
-                    nCrList[i] *= j;
-                }
-                else {equal = false;}
-            }
-            for (j = n - i; j >= 2; j--) {
-                if (j >= i+1 && j <= n) {
-                    jequal = true;
-                }
-                if (jequal == false) {
-                    nCrList[i] /= j;
-                } else {
-                    jequal = false;
-                }
-            }
-        }
-    }
-    void getBezierVertex(GLfloat t, Vertex *bezierVertex, GLint *nCrList, int totalVertices) {
-        GLint n = totalVertices - 1;
-        bezierVertex->x = 0.0; // reset to zero
-        bezierVertex->y = 0.0;
-        for (int i = 0; i < totalVertices; i++) {
-            bezierVertex->x += vertices[i].x * nCrList[i] * pow(t, i) * pow(1-t, n-i);
-            bezierVertex->y += vertices[i].y * nCrList[i] * pow(t, i) * pow(1-t, n-i);
-        }
-    }
     void bezier() {
-        Vertex bezierVertex;
-    
+        /* reset vector */
+        bezierVertices.clear();
+        
+        /* get new vector */
         int totalVertices = (int)(vertices.size());
-        GLint *nCrList = new GLint[totalVertices+1];
-        binomialCoeffs(totalVertices - 1, nCrList);
-
         for (int i = 0; i <= totalBezierVertices; i++) {
-            GLfloat t = GLfloat(i) / GLfloat(totalBezierVertices);
-            getBezierVertex(t, &bezierVertex, nCrList, totalVertices);
+            Vertex bezierVertex = Vertex(0.0, 0.0);
+            double t = double(i) / double(totalBezierVertices);
+            int n = totalVertices - 1;
+            for (int i = 0; i < totalVertices; i++) {
+                bezierVertex.x += vertices.at(i).x * get_nCr(n, i) * pow(t, i) * pow(1-t, n-i);
+                bezierVertex.y += vertices.at(i).y * get_nCr(n, i) * pow(t, i) * pow(1-t, n-i);
+            }
             bezierVertices.push_back(bezierVertex);
         }
     }
+    
+
     void updateCurve() {
-        int subCurveOrder = curveID; // = k = I want to break my curve into to cubics
+        int subCurveOrder = order_k; // = k = I want to break my curve into to cubics
 
         // De boor 1st attempt
         if(vertices.size() >= subCurveOrder) {
-            knotVector.clear();
-            createKnotVector(subCurveOrder, (int)vertices.size());
+            knots.clear();
+            createknots(subCurveOrder, (int)vertices.size());
             bSplineVertices.clear();
 
             for(int steps=0; steps<=1000; steps++) {
                 // use steps to get a 0-1 range value for progression along the curve
-                // then get that value into the range [k-1, n+1]
+                // then get that value into the range .at(k-1, n+1)
                 // k-1 = subCurveOrder-1
                 // n+1 = always the number of total control points
-
-                float t = (steps / 1000.0f) * (vertices.size() - (subCurveOrder-1)) + subCurveOrder-1;
-
+                double t = (steps / 1000.0f) * (vertices.size() - (subCurveOrder-1)) + subCurveOrder-1;
                 Vertex temp;
                 temp.x = temp.y = 0;
                 for(int i=1; i <= vertices.size(); i++) {
-                    float weightForControl = calculateWeightForPointI(i, subCurveOrder, (int)vertices.size(), t);
-                    temp.x += weightForControl * vertices[i-1].x;
-                    temp.y += weightForControl * vertices[i-1].y;
+                    double weightForControl = calculateWeightForPointI(i, subCurveOrder, (int)vertices.size(), t);
+                    temp.x += weightForControl * vertices.at(i-1).x;
+                    temp.y += weightForControl * vertices.at(i-1).y;
                 }
                 bSplineVertices.push_back(temp);
             }
         }
     }
-    float calculateWeightForPointI(int i, int k, int cps, float t) {
-        if(k == 1) {
-            if(t >= knot(i) && t < knot(i+1))
+    double calculateWeightForPointI(int i, int k, int cps, double t) {
+        if (k == 1) {
+            if (t >= knot(i) && t < knot(i+1))
                 return 1;
             else
                 return 0;
         }
 
-        float numeratorA = (t - knot(i));
-        float denominatorA = (knot(i + k-1) - knot(i));
-        float numeratorB = (knot(i + k) - t);
-        float denominatorB = (knot(i + k) - knot(i + 1));
+        double numeratorA = (t - knot(i));
+        double denominatorA = (knot(i + k-1) - knot(i));
+        double numeratorB = (knot(i + k) - t);
+        double denominatorB = (knot(i + k) - knot(i + 1));
 
-        float subweightA = 0;
-        float subweightB = 0;
+        double subweightA = 0;
+        double subweightB = 0;
 
         if (denominatorA != 0)
             subweightA = numeratorA / denominatorA * calculateWeightForPointI(i, k-1, cps, t);
@@ -181,13 +164,46 @@ struct Curve {                                                                //
 
         return subweightA + subweightB;
     }
-    float knot(int indexForKnot) {
-        return knotVector.at(indexForKnot-1);
+    
+    // from https://chi3x10.wordpress.com/2009/10/18/de-boor-algorithm-in-c/
+    Vertex deBoor(int k, int i, double x) {
+        if (k == 0) {
+            return vertices.at(i);
+        } else {
+            double alpha = (x - knots.at(i)) / (knots.at(i + degree + 1 - k) - knots.at(i));
+            return (deBoor(k-1, i-1, x)*(1-alpha) + deBoor(k-1, i, x)*alpha);
+        }
     }
-    void createKnotVector(int curveOrderK, int numControlPoints) {
+    
+    double knot(int indexForKnot) {
+        return knots.at(indexForKnot-1);
+    }
+    void createknots(int curveOrderK, int numControlPoints) {
         int knotSize = curveOrderK + numControlPoints;
         for(int count = 0; count <= knotSize; count++) {
-                knotVector.push_back(count);
+            knots.push_back(count);
+        }
+    }
+    
+    void myBspline() {
+        if (vertices.size() >= order_k) {
+            /* get new knot vector */
+            knots.clear();
+            for (int i = 0; i <= order_k + (int)vertices.size(); i++) {
+                knots.push_back(i);
+            }
+            
+            /* get new spline vector */
+            bSplineVertices.clear();
+            for (int i = 0; i <= totalBsplineVertices; i++) {
+                double x = (i / 1000.0f) * (vertices.size() - (order_k-1)) + order_k-1;
+                Vertex bsplineVertex = Vertex(0.0, 0.0);
+                for (int j = order_k; j < vertices.size(); j++) {
+                    bsplineVertex.x += deBoor(order_k, j, x).x * vertices.at(j).x;
+                    bsplineVertex.y += deBoor(order_k, j, x).y * vertices.at(j).y;
+                }
+                bSplineVertices.push_back(bsplineVertex);
+            }
         }
     }
 };
@@ -217,30 +233,19 @@ int pindex = -1;
 int id = -1;
 int aid = -1;
 int pid = -1;
-float kid = -1;
-float kindex = -1;
+double kid = -1;
+double kindex = -1;
 
 /*--------------------------- my Helper Functions ----------------------------*/
-int get_fact(int n) {
-    int result = 1;
-    for (int i = 2; i <= n; i++) {
-        result = result * i;
-    }
-    return result;
-}
-int get_nCr(int n, int r) {
-    return get_fact(n) / (get_fact(r) * get_fact(n - r));
-}
 
 void draw_input_line (Graph frame) {
-    glLineWidth(2.0);
     glBegin(GL_LINES);
     for (int i = 0; i < frame.curves.size(); i++) {
-        if (frame.curves[i].vertices.size() >= 2) {
-            for (int j = 1; j < frame.curves[i].vertices.size(); j++) {
-                glColor3f(0, 0, 1);
-                glVertex2f(frame.curves[i].vertices[j-1].x, frame.curves[i].vertices[j-1].y);
-                glVertex2f(frame.curves[i].vertices[j].x, frame.curves[i].vertices[j].y);
+        if (frame.curves.at(i).vertices.size() >= 2) {
+            for (int j = 1; j < frame.curves.at(i).vertices.size(); j++) {
+                glColor3f(0.0, 0.0, 1.0);
+                glVertex2f(frame.curves.at(i).vertices.at(j-1).x, frame.curves.at(i).vertices.at(j-1).y);
+                glVertex2f(frame.curves.at(i).vertices.at(j).x, frame.curves.at(i).vertices.at(j).y);
             }
         }
     }
@@ -248,14 +253,13 @@ void draw_input_line (Graph frame) {
 }
         
 void draw_bezier (Graph frame) {
-    glLineWidth(2.0);
     glBegin(GL_LINES);
     for (int i = 0; i < frame.curves.size(); i++) {
-        if (frame.curves[i].vertices.size() >= 3) {
-            for (int j = 1; j < frame.curves[i].bezierVertices.size(); j++) {
-                glColor3f(1, 0, 0);
-                glVertex2f(frame.curves[i].bezierVertices[j-1].x, frame.curves[i].bezierVertices[j-1].y);
-                glVertex2f(frame.curves[i].bezierVertices[j].x, frame.curves[i].bezierVertices[j].y);
+        if (frame.curves.at(i).vertices.size() >= 3) {
+            for (int j = 1; j < frame.curves.at(i).bezierVertices.size(); j++) {
+                glColor3f(1.0, 0.0, 0.0);
+                glVertex2f(frame.curves.at(i).bezierVertices.at(j-1).x, frame.curves.at(i).bezierVertices.at(j-1).y);
+                glVertex2f(frame.curves.at(i).bezierVertices.at(j).x, frame.curves.at(i).bezierVertices.at(j).y);
             }
         }
     }
@@ -263,14 +267,13 @@ void draw_bezier (Graph frame) {
 }
     
 void draw_bspline (Graph frame) {
-    glLineWidth(2.0);
     glBegin(GL_LINES);
     for (int i = 0; i < frame.curves.size(); i++) {
-        if (frame.curves[i].vertices.size() >= 3) {
-            for (int j = 1; j < frame.curves[i].bSplineVertices.size(); j++) {
-                glColor3f(1, 0, 0);
-                glVertex2f(frame.curves[i].bSplineVertices[j-1].x, frame.curves[i].bSplineVertices[j-1].y);
-                glVertex2f(frame.curves[i].bSplineVertices[j].x, frame.curves[i].bSplineVertices[j].y);
+        if (frame.curves.at(i).vertices.size() >= 3) {
+            for (int j = 1; j < frame.curves.at(i).bSplineVertices.size(); j++) {
+                glColor3f(1.0, 0.0, 0.0);
+                glVertex2f(frame.curves.at(i).bSplineVertices.at(j-1).x, frame.curves.at(i).bSplineVertices.at(j-1).y);
+                glVertex2f(frame.curves.at(i).bSplineVertices.at(j).x, frame.curves.at(i).bSplineVertices.at(j).y);
             }
         }
     }
@@ -333,31 +336,34 @@ void idle()
 
 void display()
 {
-    glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
+    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    if (origin.curves.size() != 0) {
-        draw_input_line(origin);
-
-        for (int i = 0; i < origin.curves.size(); i++) {
-            for (int j = 0; j < origin.curves[i].vertices.size(); j++) {
-                glPointSize(5);
-                draw_pix(origin.curves[i].vertices[j].x , origin.curves[i].vertices[j].y);
-            }
-            if (isBezier) {
-                if (origin.curves[i].vertices.size() > 1) {
-                    origin.curves[i].bezierVertices.clear();
-                    origin.curves[i].bezier();
-                }
-                if (origin.curves[i].vertices.size() > 1) {
-                    draw_bezier(origin);
-                }
-            } else {
-                origin.curves[i].updateCurve();
-                if (origin.curves[i].vertices.size() > 1) {
-                    draw_bspline(origin);
-                }
-            }
+    /* draw input vertices */
+    for (int i = 0; i < origin.curves.size(); i++) {
+        for (int j = 0; j < origin.curves.at(i).vertices.size(); j++) {
+            glPointSize(5);
+            draw_pix(origin.curves.at(i).vertices.at(j).x, origin.curves.at(i).vertices.at(j).y);
         }
+    }
+    
+    /* draw input lines */
+    draw_input_line(origin);
+    
+    /* draw bezier curves */
+    if (isBezier == true) {
+        for (int i = 0; i < origin.curves.size(); i++) {
+            origin.curves.at(i).bezier();
+        }
+        draw_bezier(origin);
+    }
+    
+    /* draw b-spline curves */
+    if (isBezier == false) {
+        for (int i = 0; i < origin.curves.size(); i++) {
+            origin.curves.at(i).updateCurve();
+//            origin.curves.at(i).myBspline();
+        }
+        draw_bspline(origin);
     }
 
     glutSwapBuffers();
@@ -385,7 +391,7 @@ void reshape(int width, int height)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    pixel_size = width/(float)grid_width;
+    pixel_size = width/(double)grid_width;
 
     glPointSize(pixel_size);
     check();
@@ -409,7 +415,7 @@ void key(unsigned char ch, int x, int y)
             cin >> cur;
             if (cur > 1 && cur < 5) {
                 for (int i = 0; i < origin.curves.size(); i++) {
-                    origin.curves[i].curveID = cur;
+                    origin.curves.at(i).order_k = cur;
                 }
             }
             else cout << "wrong curve number!!! :(" << endl;
@@ -457,7 +463,7 @@ void key(unsigned char ch, int x, int y)
              break;
          case 'c':
              for (int i = 0; i < origin.curves.size(); i++) {
-                 origin.curves[i].vertices.clear();
+                 origin.curves.at(i).vertices.clear();
              }
              origin.curves.clear();
 
@@ -471,7 +477,7 @@ void key(unsigned char ch, int x, int y)
              break;
           case 'q':
             cout << "Thanks for your using :)" <<  endl;
-            if (origin.curves.size() == 1 && origin.curves[0].vertices[0].x == -300) {
+            if (origin.curves.size() == 1 && origin.curves.at(0).vertices.at(0).x == -300) {
                 fout << "No curve in this graph" << endl;
             }
             else {
@@ -479,8 +485,8 @@ void key(unsigned char ch, int x, int y)
                 for (int i = 0; i < origin.curves.size(); i++) {
                     fout << "the id of the curve is: " << i+1 << endl << endl;
                     fout << "the vertex of the curve is: " << endl;
-                for (int j = 0; j < origin.curves[i].vertices.size(); j++) {
-                    fout << "(" << origin.curves[i].vertices[j].x << "," << origin.curves[i].vertices[j].y << ")" << " --> ";
+                for (int j = 0; j < origin.curves.at(i).vertices.size(); j++) {
+                    fout << "(" << origin.curves.at(i).vertices.at(j).x << "," << origin.curves.at(i).vertices.at(j).y << ")" << " --> ";
                 }
                     fout << "end" << endl << endl << endl;
                 }
@@ -509,15 +515,15 @@ void mouse(int button, int state, int x, int y)
         vertex.x = newx;
         vertex.y = newy;
         if (id == 1) {
-            int l = (int)origin.curves[0].vertices.size();
-            if (origin.curves[0].vertices[0].x != -300) {
-            if (!((newx >= origin.curves[0].vertices[l-1].x-5 && newx <= origin.curves[0].vertices[l-1].x+5) && (newy >= origin.curves[0].vertices[l-1].y-5 && newy <= origin.curves[0].vertices[l-1].y+5))) {
-                origin.curves[0].vertices.push_back(vertex);
+            int l = (int)origin.curves.at(0).vertices.size();
+            if (origin.curves.at(0).vertices.at(0).x != -300) {
+            if (!((newx >= origin.curves.at(0).vertices.at(l-1).x-5 && newx <= origin.curves.at(0).vertices.at(l-1).x+5) && (newy >= origin.curves.at(0).vertices.at(l-1).y-5 && newy <= origin.curves.at(0).vertices.at(l-1).y+5))) {
+                origin.curves.at(0).vertices.push_back(vertex);
                 }
             }
                 else {
-                    origin.curves[0].vertices[0].x = newx;
-                    origin.curves[0].vertices[0].y = newy;
+                    origin.curves.at(0).vertices.at(0).x = newx;
+                    origin.curves.at(0).vertices.at(0).y = newy;
                 }
         }
         else if (id > 1) {
@@ -534,9 +540,9 @@ void mouse(int button, int state, int x, int y)
                 Vertex v;
                 v.x = newx;
                 v.y = newy;
-                int l = (int)origin.curves[id-1].vertices.size();
-                if (!((newx >= origin.curves[id-1].vertices[l-1].x-5 && newx <= origin.curves[id-1].vertices[l-1].x+5) && (newy >= origin.curves[id-1].vertices[l-1].y-5 && newy <= origin.curves[id-1].vertices[l-1].y+5))) {
-                    origin.curves[id-1].vertices.push_back(v);
+                int l = (int)origin.curves.at(id-1).vertices.size();
+                if (!((newx >= origin.curves.at(id-1).vertices.at(l-1).x-5 && newx <= origin.curves.at(id-1).vertices.at(l-1).x+5) && (newy >= origin.curves.at(id-1).vertices.at(l-1).y-5 && newy <= origin.curves.at(id-1).vertices.at(l-1).y+5))) {
+                    origin.curves.at(id-1).vertices.push_back(v);
                 }
             }
         }
@@ -544,10 +550,10 @@ void mouse(int button, int state, int x, int y)
 
     if (mousedelete) {
         for (int j = 0; j < origin.curves.size(); j++) {
-            for (int i = 0; i < origin.curves[j].vertices.size(); i++) {
-                if ((newx >= origin.curves[j].vertices[i].x-5 && newx <= origin.curves[j].vertices[i].x+5) && (newy >= origin.curves[j].vertices[i].y-5 && newy <= origin.curves[j].vertices[i].y+5)) {
-                    if (origin.curves[j].vertices.size() != 1)
-                        origin.curves[j].vertices.erase(origin.curves[j].vertices.begin() + i);
+            for (int i = 0; i < origin.curves.at(j).vertices.size(); i++) {
+                if ((newx >= origin.curves.at(j).vertices.at(i).x-5 && newx <= origin.curves.at(j).vertices.at(i).x+5) && (newy >= origin.curves.at(j).vertices.at(i).y-5 && newy <= origin.curves.at(j).vertices.at(i).y+5)) {
+                    if (origin.curves.at(j).vertices.size() != 1)
+                        origin.curves.at(j).vertices.erase(origin.curves.at(j).vertices.begin() + i);
                         else cout << "only one vertex left, please use clean to delete it" << endl;
                 }
             }
@@ -556,8 +562,8 @@ void mouse(int button, int state, int x, int y)
 
     if (mouseadd && aid > 0) {
         bool exist = false;
-        for (int i = 0; i < origin.curves[aid-1].vertices.size(); i++) {
-            if ((newx >= origin.curves[aid-1].vertices[i].x-5 && newx <= origin.curves[aid-1].vertices[i].x+5) && (newy >= origin.curves[aid-1].vertices[i].y-5 && newy <= origin.curves[aid-1].vertices[i].y+5))
+        for (int i = 0; i < origin.curves.at(aid-1).vertices.size(); i++) {
+            if ((newx >= origin.curves.at(aid-1).vertices.at(i).x-5 && newx <= origin.curves.at(aid-1).vertices.at(i).x+5) && (newy >= origin.curves.at(aid-1).vertices.at(i).y-5 && newy <= origin.curves.at(aid-1).vertices.at(i).y+5))
                 exist = true;
         }
 
@@ -568,20 +574,20 @@ void mouse(int button, int state, int x, int y)
             Vertex vertex;
             vertex.x = newx;
             vertex.y = newy;
-            origin.curves[aid-1].vertices.push_back(vertex);
+            origin.curves.at(aid-1).vertices.push_back(vertex);
         }
     }
 
     if (mousechange && pindex >= 0) {
-        origin.curves[pid].vertices[pindex].x = newx;
-        origin.curves[pid].vertices[pindex].y = newy;
+        origin.curves.at(pid).vertices.at(pindex).x = newx;
+        origin.curves.at(pid).vertices.at(pindex).y = newy;
         //pindex = -1;
     }
 
     if (mousechange && pindex < 0) {
         for (int j = 0; j < origin.curves.size(); j++) {
-            for (int i = 0; i < origin.curves[j].vertices.size(); i++) {
-                if ((newx >= origin.curves[j].vertices[i].x-5 && newx <= origin.curves[j].vertices[i].x+5) && (newy >= origin.curves[j].vertices[i].y-5 && newy <= origin.curves[j].vertices[i].y+5)) {
+            for (int i = 0; i < origin.curves.at(j).vertices.size(); i++) {
+                if ((newx >= origin.curves.at(j).vertices.at(i).x-5 && newx <= origin.curves.at(j).vertices.at(i).x+5) && (newy >= origin.curves.at(j).vertices.at(i).y-5 && newy <= origin.curves.at(j).vertices.at(i).y+5)) {
                     pindex = i;
                     pid = j;
                 }
