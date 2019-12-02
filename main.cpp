@@ -189,6 +189,7 @@ void draw_input_line (Graph frame) {
     for (int i = 0; i < frame.curves.size(); i++) {
         if (frame.curves.at(i).vertices.size() >= 2) {
             for (int j = 1; j < frame.curves.at(i).vertices.size(); j++) {
+                cout << "vertex " << j << ": (" << frame.curves.at(i).vertices.at(j-1).x << "," << frame.curves.at(i).vertices.at(j-1).y << ")" << endl;
                 glColor3f(0.0, 0.0, 1.0);
                 glVertex2f(frame.curves.at(i).vertices.at(j-1).x, frame.curves.at(i).vertices.at(j-1).y);
                 glVertex2f(frame.curves.at(i).vertices.at(j).x, frame.curves.at(i).vertices.at(j).y);
@@ -352,20 +353,6 @@ void key(unsigned char ch, int x, int y)
     fout.open("output.txt");
     switch(ch)
     {
-//        case 'u':
-//            mouseinput = false;
-//            mouseadd = false;
-//            mousechange = false;
-//            mousedelete = false;
-//            cout << "please enter new sub curve number:" << endl;
-//            cin >> cur;
-//            if (cur > 1 && cur < 5) {
-//                for (int i = 0; i < origin.curves.size(); i++) {
-//                    origin.curves.at(i).order_k = cur;
-//                }
-//            }
-//            else cout << "wrong curve number!!! :(" << endl;
-//            break;
         case 'b':
              isBezier = !isBezier;
              break;
@@ -377,8 +364,12 @@ void key(unsigned char ch, int x, int y)
             if (mouseinput) {
                 cout << "please enter the new curve id" << endl;
                 cin >> id;
+//                id = (int)origin.curves.size();
+//                cout << "Your new curve's id is: " << origin.curves.size() << endl;
             }
-            else id = -1;
+            else {
+                id = -1;
+            }
             break;
          case 'd':
              mousedelete = !mousedelete;
@@ -454,7 +445,6 @@ void mouse(int button, int state, int x, int y)
 {
     int newx = (int)(x);
     int newy = (int)((win_height-y));
-//    int tid;
 
     if (mouseinput && id > 0){
         Vertex vertex;
@@ -463,16 +453,15 @@ void mouse(int button, int state, int x, int y)
         if (id == 1) {
             int l = (int)origin.curves.at(0).vertices.size();
             if (origin.curves.at(0).vertices.at(0).x != -300) {
-            if (!((newx >= origin.curves.at(0).vertices.at(l-1).x-5 && newx <= origin.curves.at(0).vertices.at(l-1).x+5) && (newy >= origin.curves.at(0).vertices.at(l-1).y-5 && newy <= origin.curves.at(0).vertices.at(l-1).y+5))) {
-                origin.curves.at(0).vertices.push_back(vertex);
+                //点和点之间太近了
+                if (!((newx >= origin.curves.at(0).vertices.at(l-1).x-5 && newx <= origin.curves.at(0).vertices.at(l-1).x+5) && (newy >= origin.curves.at(0).vertices.at(l-1).y-5 && newy <= origin.curves.at(0).vertices.at(l-1).y+5))) {
+                    origin.curves.at(0).vertices.push_back(vertex);
                 }
+            } else {
+                origin.curves.at(0).vertices.at(0).x = newx;
+                origin.curves.at(0).vertices.at(0).y = newy;
             }
-                else {
-                    origin.curves.at(0).vertices.at(0).x = newx;
-                    origin.curves.at(0).vertices.at(0).y = newy;
-                }
-        }
-        else if (id > 1) {
+        } else if (id > 1) {
             if (id > origin.curves.size()) {
 
                 Vertex v;
@@ -481,8 +470,7 @@ void mouse(int button, int state, int x, int y)
                 v.y = newy;
                 poly.vertices.push_back(v);
                 origin.curves.push_back(poly);
-            }
-            else {
+            } else {
                 Vertex v;
                 v.x = newx;
                 v.y = newy;
