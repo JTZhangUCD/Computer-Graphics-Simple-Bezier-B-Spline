@@ -25,6 +25,17 @@
 
 using namespace std;
 
+#define DEFAULT -1;
+
+#define NEW_CURVE 0;
+
+#define ADD_VERTEX 1;
+#define MOVE_VERTEX 2;
+#define REMOVE_VERTEX 3;
+
+#define CHANGE_KNOTS 4;
+#define CHANGE_K 5;
+
 /*--------------------------- GL Global Variables ----------------------------*/
 int grid_width;
 int grid_height;
@@ -56,23 +67,6 @@ struct Vertex {
     }
     Vertex(void) {
         x = 0; y = 0;
-    }
-
-    inline Vertex operator = (const Vertex v1) {
-        x = v1.x; y = v1.y;
-        return *this;
-    }
-    inline Vertex operator + (const Vertex v1) const {
-        return Vertex(x+v1.x, y+v1.y);
-    }
-    inline Vertex operator - (const Vertex v1) const {
-        return Vertex(x-v1.x, y-v1.y);
-    }
-    inline Vertex operator * (double n) const {
-        return Vertex(x*n, y*n);
-    }
-    inline Vertex operator / (double n) const {
-        return Vertex(x/n, y/n);
     }
 };
 
@@ -149,27 +143,13 @@ struct Curve {
         }
         
         /* general case: k != 0 */
-        return ((x - knots.at(i)) / (knots.at(i+k) - knots.at(i)) * deBoor(k-1, i, x)) +
-               ((knots.at(i+k+1) - x) / (knots.at(i+k+1) - knots.at(i+1)) * deBoor(k-1, i+1, x));
-    }
-};
-
-struct Graph {
-    vector<Curve> curves;
-
-    Graph() {
-        Vertex temp;
-        Curve curve;
-        temp.x = -300;
-        temp.y = -300;
-
-        curve.vertices.push_back(temp);
-        curves.push_back(curve);
+        return ((x - knots.at(i)) / (knots.at(i+k) - knots.at(i)) * deBoor(k-1, i, x)) + ((knots.at(i+k+1) - x) / (knots.at(i+k+1) - knots.at(i+1)) * deBoor(k-1, i+1, x));
     }
 };
 
 /*--------------------------- my Global Variables ----------------------------*/
-Graph origin;
+vector<Curve> curves;
+int mode = DEFAULT;
 bool mouseinput = false;
 bool mousedelete = false;
 bool mouseadd = false;
@@ -179,48 +159,44 @@ int pindex = -1;
 int id = -1;
 int aid = -1;
 int pid = -1;
-double kid = -1;
-double kindex = -1;
 
 /*--------------------------- my Helper Functions ----------------------------*/
-
-void draw_input_line (Graph frame) {
+void draw_input_line() {
     glBegin(GL_LINES);
-    for (int i = 0; i < frame.curves.size(); i++) {
-        if (frame.curves.at(i).vertices.size() >= 2) {
-            for (int j = 1; j < frame.curves.at(i).vertices.size(); j++) {
-                cout << "vertex " << j << ": (" << frame.curves.at(i).vertices.at(j-1).x << "," << frame.curves.at(i).vertices.at(j-1).y << ")" << endl;
+    for (int i = 0; i < curves.size(); i++) {
+        if (curves.at(i).vertices.size() >= 2) {
+            for (int j = 1; j < curves.at(i).vertices.size(); j++) {
                 glColor3f(0.0, 0.0, 1.0);
-                glVertex2f(frame.curves.at(i).vertices.at(j-1).x, frame.curves.at(i).vertices.at(j-1).y);
-                glVertex2f(frame.curves.at(i).vertices.at(j).x, frame.curves.at(i).vertices.at(j).y);
+                glVertex2f(curves.at(i).vertices.at(j-1).x, curves.at(i).vertices.at(j-1).y);
+                glVertex2f(curves.at(i).vertices.at(j).x, curves.at(i).vertices.at(j).y);
             }
         }
     }
     glEnd();
 }
         
-void draw_bezier (Graph frame) {
+void draw_bezier() {
     glBegin(GL_LINES);
-    for (int i = 0; i < frame.curves.size(); i++) {
-        if (frame.curves.at(i).vertices.size() >= 3) {
-            for (int j = 1; j < frame.curves.at(i).bezierVertices.size(); j++) {
+    for (int i = 0; i < curves.size(); i++) {
+        if (curves.at(i).vertices.size() >= 3) {
+            for (int j = 1; j < curves.at(i).bezierVertices.size(); j++) {
                 glColor3f(1.0, 0.0, 0.0);
-                glVertex2f(frame.curves.at(i).bezierVertices.at(j-1).x, frame.curves.at(i).bezierVertices.at(j-1).y);
-                glVertex2f(frame.curves.at(i).bezierVertices.at(j).x, frame.curves.at(i).bezierVertices.at(j).y);
+                glVertex2f(curves.at(i).bezierVertices.at(j-1).x, curves.at(i).bezierVertices.at(j-1).y);
+                glVertex2f(curves.at(i).bezierVertices.at(j).x, curves.at(i).bezierVertices.at(j).y);
             }
         }
     }
     glEnd();
 }
     
-void draw_bspline (Graph frame) {
+void draw_bspline() {
     glBegin(GL_LINES);
-    for (int i = 0; i < frame.curves.size(); i++) {
-        if (frame.curves.at(i).vertices.size() >= 3) {
-            for (int j = 1; j < frame.curves.at(i).bSplineVertices.size(); j++) {
+    for (int i = 0; i < curves.size(); i++) {
+        if (curves.at(i).vertices.size() >= 3) {
+            for (int j = 1; j < curves.at(i).bSplineVertices.size(); j++) {
                 glColor3f(1.0, 0.0, 0.0);
-                glVertex2f(frame.curves.at(i).bSplineVertices.at(j-1).x, frame.curves.at(i).bSplineVertices.at(j-1).y);
-                glVertex2f(frame.curves.at(i).bSplineVertices.at(j).x, frame.curves.at(i).bSplineVertices.at(j).y);
+                glVertex2f(curves.at(i).bSplineVertices.at(j-1).x, curves.at(i).bSplineVertices.at(j-1).y);
+                glVertex2f(curves.at(i).bSplineVertices.at(j).x, curves.at(i).bSplineVertices.at(j).y);
             }
         }
     }
@@ -286,31 +262,30 @@ void display()
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
     /* draw input vertices */
-    for (int i = 0; i < origin.curves.size(); i++) {
-        for (int j = 0; j < origin.curves.at(i).vertices.size(); j++) {
+    for (int i = 0; i < curves.size(); i++) {
+        for (int j = 0; j < curves.at(i).vertices.size(); j++) {
             glPointSize(5);
-            draw_pix(origin.curves.at(i).vertices.at(j).x, origin.curves.at(i).vertices.at(j).y);
+            draw_pix(curves.at(i).vertices.at(j).x, curves.at(i).vertices.at(j).y);
         }
     }
     
     /* draw input lines */
-    draw_input_line(origin);
+    draw_input_line();
     
     /* draw bezier curves */
     if (isBezier == true) {
-        for (int i = 0; i < origin.curves.size(); i++) {
-            origin.curves.at(i).bezier();
+        for (int i = 0; i < curves.size(); i++) {
+            curves.at(i).bezier();
         }
-        draw_bezier(origin);
+        draw_bezier();
     }
     
     /* draw b-spline curves */
     if (isBezier == false) {
-        for (int i = 0; i < origin.curves.size(); i++) {
-//            origin.curves.at(i).updateCurve();
-            origin.curves.at(i).bspline();
+        for (int i = 0; i < curves.size(); i++) {
+            curves.at(i).bspline();
         }
-        draw_bspline(origin);
+        draw_bspline();
     }
 
     glutSwapBuffers();
@@ -348,83 +323,84 @@ void key(unsigned char ch, int x, int y)
 {
     Curve poly;
     Vertex temp;
-//    int cur;
     ofstream fout;
     fout.open("output.txt");
-    switch(ch)
-    {
+    switch(ch) {
         case 'b':
-             isBezier = !isBezier;
-             break;
+            isBezier = !isBezier;
+            break;
         case 'i':
-            mouseinput = !mouseinput;
-            mouseadd = false;
-            mousechange = false;
-            mousedelete = false;
-            if (mouseinput) {
-                cout << "please enter the new curve id" << endl;
-                cin >> id;
-//                id = (int)origin.curves.size();
-//                cout << "Your new curve's id is: " << origin.curves.size() << endl;
-            }
-            else {
-                id = -1;
+//            mouseinput = !mouseinput;
+//            mouseadd = false;
+//            mousechange = false;
+//            mousedelete = false;
+            mode = NEW_CURVE;
+//            if (mouseinput) {
+            cout << "Your new curve's id is: " << curves.size() << endl;
+            id = (int)curves.size();
+//            }
+//            else {
+//                id = -1;
+//            }
+            break;
+        case 'a':
+//            mouseadd = !mouseadd;
+//            mouseinput = false;
+//            mousechange = false;
+//            mousedelete = false;
+            mode = ADD_VERTEX;
+//            if (mouseadd) {
+            cout << "Current curve count: " << curves.size() << endl;
+            cout << "please enter the curve id that you wang to add points" << endl;
+            cin >> aid;
+//            } else {
+//                aid = -1;
+//            }
+            if (!(0 <= aid && aid < curves.size())) {
+                cout << "invalid aid! (mode is set to DEFAULT)" << endl;
+                mode = DEFAULT;
             }
             break;
-         case 'd':
-             mousedelete = !mousedelete;
-             mouseadd = false;
-             mousechange = false;
-             mouseinput = false;
-             break;
-         case 'a':
-            mouseadd = !mouseadd;
-            mouseinput = false;
-            mousechange = false;
-            mousedelete = false;
-            if (mouseadd) {
-                cout << "please enter the curve id that you wang to add points" << endl;
-                cin >> aid;
-            }
-            else aid = -1;
-            if (aid > origin.curves.size()) {
-                cout << "curve id does not exist or add mode is turned off! :(" << endl;
-            }
+        case 'p':
+//            mousechange = !mousechange;
+//            pindex = -1;
+//            mouseinput = false;
+//            mouseadd = false;
+//            mousedelete = false;
+            mode = MOVE_VERTEX;
+//            if (mousechange) {
+            cout << "Drag your desire vertex to new location on the screen" << endl;
+//            }
             break;
-         case 'p':
-             mousechange = !mousechange;
-             pindex = -1;
-             mouseinput = false;
-             mouseadd = false;
-             mousedelete = false;
-             break;
-         case 'c':
-             for (int i = 0; i < origin.curves.size(); i++) {
-                 origin.curves.at(i).vertices.clear();
-             }
-             origin.curves.clear();
-
-             temp.x = -300;
-             temp.y = -300;
-             //vector <Vertex> v;
-             //v.push_back(temp);
-
-             poly.vertices.push_back(temp);
-             origin.curves.push_back(poly);
-             break;
-          case 'q':
+        case 'd':
+//            mousedelete = !mousedelete;
+//            mouseadd = false;
+//            mousechange = false;
+//            mouseinput = false;
+            mode = REMOVE_VERTEX;
+            break;
+        
+        case 'c':
+            for (int i = 0; i < curves.size(); i++) {
+                curves.at(i).vertices.clear();
+            }
+            curves.clear();
+            mode = DEFAULT;
+//            curves.push_back(poly);
+            break;
+        case 'q':
             cout << "Thanks for your using :)" <<  endl;
-            if (origin.curves.size() == 1 && origin.curves.at(0).vertices.at(0).x == -300) {
+            if (curves.size() == 1 && curves.at(0).vertices.at(0).x == -300) {
                 fout << "No curve in this graph" << endl;
             }
             else {
-                fout << "the number of the curve is: " << origin.curves.size() << endl << endl;
-                for (int i = 0; i < origin.curves.size(); i++) {
+                fout << "the number of the curve is: " << curves.size() << endl << endl;
+                for (int i = 0; i < curves.size(); i++) {
                     fout << "the id of the curve is: " << i+1 << endl << endl;
                     fout << "the vertex of the curve is: " << endl;
-                for (int j = 0; j < origin.curves.at(i).vertices.size(); j++) {
-                    fout << "(" << origin.curves.at(i).vertices.at(j).x << "," << origin.curves.at(i).vertices.at(j).y << ")" << " --> ";
-                }
+                    for (int j = 0; j < curves.at(i).vertices.size(); j++) {
+                        fout << "(" << curves.at(i).vertices.at(j).x << "," << curves.at(i).vertices.at(j).y << ")" << " --> ";
+                    }
                     fout << "end" << endl << endl << endl;
                 }
             }
@@ -446,88 +422,93 @@ void mouse(int button, int state, int x, int y)
     int newx = (int)(x);
     int newy = (int)((win_height-y));
 
-    if (mouseinput && id > 0){
-        Vertex vertex;
-        vertex.x = newx;
-        vertex.y = newy;
-        if (id == 1) {
-            int l = (int)origin.curves.at(0).vertices.size();
-            if (origin.curves.at(0).vertices.at(0).x != -300) {
-                //点和点之间太近了
-                if (!((newx >= origin.curves.at(0).vertices.at(l-1).x-5 && newx <= origin.curves.at(0).vertices.at(l-1).x+5) && (newy >= origin.curves.at(0).vertices.at(l-1).y-5 && newy <= origin.curves.at(0).vertices.at(l-1).y+5))) {
-                    origin.curves.at(0).vertices.push_back(vertex);
-                }
-            } else {
-                origin.curves.at(0).vertices.at(0).x = newx;
-                origin.curves.at(0).vertices.at(0).y = newy;
-            }
-        } else if (id > 1) {
-            if (id > origin.curves.size()) {
-
-                Vertex v;
-                Curve poly;
-                v.x = newx;
-                v.y = newy;
-                poly.vertices.push_back(v);
-                origin.curves.push_back(poly);
-            } else {
-                Vertex v;
-                v.x = newx;
-                v.y = newy;
-                int l = (int)origin.curves.at(id-1).vertices.size();
-                if (!((newx >= origin.curves.at(id-1).vertices.at(l-1).x-5 && newx <= origin.curves.at(id-1).vertices.at(l-1).x+5) && (newy >= origin.curves.at(id-1).vertices.at(l-1).y-5 && newy <= origin.curves.at(id-1).vertices.at(l-1).y+5))) {
-                    origin.curves.at(id-1).vertices.push_back(v);
-                }
-            }
+//    if (mouseinput) {
+    if (mode == 0) { // mode == NEW_CURVE
+        Vertex vertex = Vertex(newx, newy);
+        /* case 1: creating a new curve */
+        if (id == curves.size()) {
+            Curve newCurve;
+            newCurve.vertices.push_back(vertex);
+            curves.push_back(newCurve);
         }
-    }
-
-    if (mousedelete) {
-        for (int j = 0; j < origin.curves.size(); j++) {
-            for (int i = 0; i < origin.curves.at(j).vertices.size(); i++) {
-                if ((newx >= origin.curves.at(j).vertices.at(i).x-5 && newx <= origin.curves.at(j).vertices.at(i).x+5) && (newy >= origin.curves.at(j).vertices.at(i).y-5 && newy <= origin.curves.at(j).vertices.at(i).y+5)) {
-                    if (origin.curves.at(j).vertices.size() != 1)
-                        origin.curves.at(j).vertices.erase(origin.curves.at(j).vertices.begin() + i);
-                        else cout << "only one vertex left, please use clean to delete it" << endl;
-                }
-            }
-        }
-    }
-
-    if (mouseadd && aid > 0) {
-        bool exist = false;
-        for (int i = 0; i < origin.curves.at(aid-1).vertices.size(); i++) {
-            if ((newx >= origin.curves.at(aid-1).vertices.at(i).x-5 && newx <= origin.curves.at(aid-1).vertices.at(i).x+5) && (newy >= origin.curves.at(aid-1).vertices.at(i).y-5 && newy <= origin.curves.at(aid-1).vertices.at(i).y+5))
-                exist = true;
-        }
-
-        if (exist) {
-            //cout << "Sorry the point is already existed :(" << endl;
-        }
+        /* case 2: adding new vertex in current curve */
         else {
-            Vertex vertex;
-            vertex.x = newx;
-            vertex.y = newy;
-            origin.curves.at(aid-1).vertices.push_back(vertex);
-        }
-    }
-
-    if (mousechange && pindex >= 0) {
-        origin.curves.at(pid).vertices.at(pindex).x = newx;
-        origin.curves.at(pid).vertices.at(pindex).y = newy;
-        //pindex = -1;
-    }
-
-    if (mousechange && pindex < 0) {
-        for (int j = 0; j < origin.curves.size(); j++) {
-            for (int i = 0; i < origin.curves.at(j).vertices.size(); i++) {
-                if ((newx >= origin.curves.at(j).vertices.at(i).x-5 && newx <= origin.curves.at(j).vertices.at(i).x+5) && (newy >= origin.curves.at(j).vertices.at(i).y-5 && newy <= origin.curves.at(j).vertices.at(i).y+5)) {
-                    pindex = i;
-                    pid = j;
+            int verticesCount = (int)curves.at(id).vertices.size();
+            // if no vertex, just push
+            if (verticesCount == 0) {
+                curves.at(id).vertices.push_back(vertex);
+            // if there is vertex, check if too close to prev vertex
+            } else {
+                int lastx = curves.at(id).vertices.at(verticesCount - 1).x;
+                int lasty = curves.at(id).vertices.at(verticesCount - 1).y;
+                if (!(lastx-5 <= newx && newx <= lastx+5 && lasty-5 <= newy && newy <= lasty+5)) {
+                    curves.at(id).vertices.push_back(vertex);
                 }
             }
         }
     }
+    
+//    if (mouseadd) {
+    if (mode == 1) { // mode == ADD_VERTEX
+        Vertex vertex = Vertex(newx, newy);
+        int verticesCount = (int)curves.at(aid).vertices.size();
+        // if no vertex, just push
+        if (verticesCount == 0) {
+            curves.at(id).vertices.push_back(vertex);
+        // if there is vertex, check if too close to prev vertex
+        } else {
+            int lastx = curves.at(aid).vertices.at(verticesCount - 1).x;
+            int lasty = curves.at(aid).vertices.at(verticesCount - 1).y;
+            if (!(lastx-5 <= newx && newx <= lastx+5 && lasty-5 <= newy && newy <= lasty+5)) {
+                curves.at(aid).vertices.push_back(vertex);
+            }
+        }
+    }
+    
+//    if (mousechange) {
+    if (mode == 2) { //mode == MOVE_VERTEX
+        /* case 1: to select a vertex */
+        if (pindex < 0) {
+            /* attempt to locate the target vertex */
+            for (int i = 0; i < curves.size(); i++) {
+                for (int j = 0; j < curves.at(i).vertices.size(); j++) {
+                    int lastx = curves.at(i).vertices.at(j).x;
+                    int lasty = curves.at(i).vertices.at(j).y;
+                    if (lastx-5 <= newx && newx <= lastx+5 && lasty-5 <= newy && newy <= lasty+5) {
+                        pid = i;
+                        pindex = j;
+                        cout << "Selected vertex: curve " << pid << "'s vertex " << pindex << endl;
+                    }
+                }
+            }
+            /* if no vertex selected */
+            if (pindex < 0) {
+                cout << "Not a vertex. Try again" << endl;
+            }
+        /* case 2: move to desired position */
+        } else {
+            curves.at(pid).vertices.at(pindex).x = newx;
+            curves.at(pid).vertices.at(pindex).y = newy;
+            // reset pindex
+            pindex = -1;
+        }
+    }
+
+//    if (mousedelete) {
+    if (mode == 3) { // mode == REMOVE_VERTEX
+        /* attempt to locate the target vertex */
+        for (int i = 0; i < curves.size(); i++) {
+            for (int j = 0; j < curves.at(i).vertices.size(); j++) {
+                int lastx = curves.at(i).vertices.at(j).x;
+                int lasty = curves.at(i).vertices.at(j).y;
+                if (lastx-5 <= newx && newx <= lastx+5 && lasty-5 <= newy && newy <= lasty+5) {
+                    curves.at(i).vertices.erase(curves.at(i).vertices.begin() + j);
+                    cout << "Curve " << i << " has " << curves.at(i).vertices.size() << " vertices left" << endl;
+                }
+            }
+        }
+    }
+    
     //redraw the scene after mouse click
     glutPostRedisplay();
 }
