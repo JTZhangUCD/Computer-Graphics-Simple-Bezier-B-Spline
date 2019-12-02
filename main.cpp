@@ -76,7 +76,7 @@ struct Vertex {
     }
 };
 
-struct Curve {                                                                // Curve
+struct Curve {
     vector<Vertex> vertices;
     
     /* bezier */
@@ -114,101 +114,47 @@ struct Curve {                                                                //
         }
     }
     
-
-    void updateCurve() {
-        int subCurveOrder = order_k; // = k = I want to break my curve into to cubics
-
-        // De boor 1st attempt
-        if(vertices.size() >= subCurveOrder) {
-            knots.clear();
-            createknots(subCurveOrder, (int)vertices.size());
-            bSplineVertices.clear();
-
-            for(int steps=0; steps<=1000; steps++) {
-                // use steps to get a 0-1 range value for progression along the curve
-                // then get that value into the range .at(k-1, n+1)
-                // k-1 = subCurveOrder-1
-                // n+1 = always the number of total control points
-                double t = (steps / 1000.0f) * (vertices.size() - (subCurveOrder-1)) + subCurveOrder-1;
-                Vertex temp;
-                temp.x = temp.y = 0;
-                for(int i=1; i <= vertices.size(); i++) {
-                    double weightForControl = calculateWeightForPointI(i, subCurveOrder, (int)vertices.size(), t);
-                    temp.x += weightForControl * vertices.at(i-1).x;
-                    temp.y += weightForControl * vertices.at(i-1).y;
-                }
-                bSplineVertices.push_back(temp);
+    void bspline() {
+        /* reset vectors */
+        bSplineVertices.clear();
+        knots.clear();
+        
+        /* get new knots vector */
+        for (int i = 0; i < order_k + (int)vertices.size(); i++) {
+            knots.push_back(i);
+        }
+        
+        /* get new bspline vector */
+        int k = order_k - 1;
+        for (int i = 0; i < totalBsplineVertices; i++) {
+            double x = (i/1000.0f) * (vertices.size() - k) + k;
+            Vertex bsplineVertex = Vertex(0.0, 0.0);
+            for (int j = 0; j < vertices.size(); j++) {
+                bsplineVertex.x += vertices.at(j).x * deBoor(k, j, x);
+                bsplineVertex.y += vertices.at(j).y * deBoor(k, j, x);
             }
+            bSplineVertices.push_back(bsplineVertex);
         }
-    }
-    double calculateWeightForPointI(int i, int k, int cps, double t) {
-        if (k == 1) {
-            if (t >= knot(i) && t < knot(i+1))
-                return 1;
-            else
-                return 0;
-        }
-
-        double numeratorA = (t - knot(i));
-        double denominatorA = (knot(i + k-1) - knot(i));
-        double numeratorB = (knot(i + k) - t);
-        double denominatorB = (knot(i + k) - knot(i + 1));
-
-        double subweightA = 0;
-        double subweightB = 0;
-
-        if (denominatorA != 0)
-            subweightA = numeratorA / denominatorA * calculateWeightForPointI(i, k-1, cps, t);
-        if (denominatorB != 0)
-            subweightB = numeratorB / denominatorB * calculateWeightForPointI(i+1, k-1, cps, t);
-
-        return subweightA + subweightB;
     }
     
-    // from https://chi3x10.wordpress.com/2009/10/18/de-boor-algorithm-in-c/
-    Vertex deBoor(int k, int i, double x) {
+    // from De Boor's algorithm's wikipedia page
+    double deBoor(int k, int i, double x) {
+        /* base case: k == 0 */
         if (k == 0) {
-            return vertices.at(i);
-        } else {
-            double alpha = (x - knots.at(i)) / (knots.at(i + degree + 1 - k) - knots.at(i));
-            return (deBoor(k-1, i-1, x)*(1-alpha) + deBoor(k-1, i, x)*alpha);
-        }
-    }
-    
-    double knot(int indexForKnot) {
-        return knots.at(indexForKnot-1);
-    }
-    void createknots(int curveOrderK, int numControlPoints) {
-        int knotSize = curveOrderK + numControlPoints;
-        for(int count = 0; count <= knotSize; count++) {
-            knots.push_back(count);
-        }
-    }
-    
-    void myBspline() {
-        if (vertices.size() >= order_k) {
-            /* get new knot vector */
-            knots.clear();
-            for (int i = 0; i <= order_k + (int)vertices.size(); i++) {
-                knots.push_back(i);
-            }
-            
-            /* get new spline vector */
-            bSplineVertices.clear();
-            for (int i = 0; i <= totalBsplineVertices; i++) {
-                double x = (i / 1000.0f) * (vertices.size() - (order_k-1)) + order_k-1;
-                Vertex bsplineVertex = Vertex(0.0, 0.0);
-                for (int j = order_k; j < vertices.size(); j++) {
-                    bsplineVertex.x += deBoor(order_k, j, x).x * vertices.at(j).x;
-                    bsplineVertex.y += deBoor(order_k, j, x).y * vertices.at(j).y;
-                }
-                bSplineVertices.push_back(bsplineVertex);
+            if (knots.at(i) <= x && x < knots.at(i+1)) {
+                return 1;
+            } else {
+                return 0;
             }
         }
+        
+        /* general case: k != 0 */
+        return ((x - knots.at(i)) / (knots.at(i+k) - knots.at(i)) * deBoor(k-1, i, x)) +
+               ((knots.at(i+k+1) - x) / (knots.at(i+k+1) - knots.at(i+1)) * deBoor(k-1, i+1, x));
     }
 };
 
-struct Graph {                                                                  // Graph
+struct Graph {
     vector<Curve> curves;
 
     Graph() {
@@ -360,8 +306,8 @@ void display()
     /* draw b-spline curves */
     if (isBezier == false) {
         for (int i = 0; i < origin.curves.size(); i++) {
-            origin.curves.at(i).updateCurve();
-//            origin.curves.at(i).myBspline();
+//            origin.curves.at(i).updateCurve();
+            origin.curves.at(i).bspline();
         }
         draw_bspline(origin);
     }
@@ -401,25 +347,25 @@ void key(unsigned char ch, int x, int y)
 {
     Curve poly;
     Vertex temp;
-    int cur;
+//    int cur;
     ofstream fout;
     fout.open("output.txt");
     switch(ch)
     {
-        case 'u':
-            mouseinput = false;
-            mouseadd = false;
-            mousechange = false;
-            mousedelete = false;
-            cout << "please enter new sub curve number:" << endl;
-            cin >> cur;
-            if (cur > 1 && cur < 5) {
-                for (int i = 0; i < origin.curves.size(); i++) {
-                    origin.curves.at(i).order_k = cur;
-                }
-            }
-            else cout << "wrong curve number!!! :(" << endl;
-            break;
+//        case 'u':
+//            mouseinput = false;
+//            mouseadd = false;
+//            mousechange = false;
+//            mousedelete = false;
+//            cout << "please enter new sub curve number:" << endl;
+//            cin >> cur;
+//            if (cur > 1 && cur < 5) {
+//                for (int i = 0; i < origin.curves.size(); i++) {
+//                    origin.curves.at(i).order_k = cur;
+//                }
+//            }
+//            else cout << "wrong curve number!!! :(" << endl;
+//            break;
         case 'b':
              isBezier = !isBezier;
              break;
