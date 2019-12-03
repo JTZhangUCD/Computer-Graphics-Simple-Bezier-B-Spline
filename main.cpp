@@ -338,8 +338,6 @@ void reshape(int width, int height)
 
 void key(unsigned char ch, int x, int y)
 {
-    ofstream fout;
-    fout.open("output.txt");
     switch(ch)
     {
         case 's': {
@@ -496,27 +494,25 @@ void key(unsigned char ch, int x, int y)
             cout << "*** All curves removed. mode: DEFAULT ***" << endl;
             break;
         }
-        case 'q': {
-            cout << "Thanks for your using :)" <<  endl;
-            if (curves.size() == 0) {
-                fout << "No curve in this graph" << endl;
-            }
-            else {
-                fout << "the number of the curve is: " << curves.size() << endl << endl;
-                for (int i = 0; i < curves.size(); i++) {
-                    fout << "the id of the curve is: " << i << endl << endl;
-                    fout << "the vertices of the curve is: " << endl;
-                    for (int j = 0; j < curves.at(i).vertices.size(); j++) {
-                        fout << "(" << curves.at(i).vertices.at(j).x << "," << curves.at(i).vertices.at(j).y << ")" << " --> ";
-                    }
-                    fout << "end" << endl << endl << endl;
+        case 'e': {
+            cout << "Exiting" <<  endl;
+            
+            ofstream fout;
+            fout.open("info.txt");
+            fout << "Total curves: " << curves.size() << endl;
+            fout << "-------------------------------------------" << endl;
+            for (int i = 0; i < curves.size(); i++) {
+                fout << "Curve id: " << i << endl << endl;
+                fout << "the vertices of the curve is: " << endl;
+                for (int j = 0; j < curves.at(i).vertices.size(); j++) {
+                    fout << "(" << curves.at(i).vertices.at(j).x << "," << curves.at(i).vertices.at(j).y << ")" << " --> ";
                 }
+                fout << endl;
             }
             exit(0);
             break;
         }
         default: {
-            //prints out which key the user hit
             printf("User hit the \"%c\" key\n",ch);
             break;
         }
